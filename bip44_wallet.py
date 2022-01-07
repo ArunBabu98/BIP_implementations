@@ -1,23 +1,27 @@
-import hashlib
-import binascii
-from typing import final
-import unicodedata
 import os
-import secrets 
+import binascii
+import hashlib
+import unicodedata
 
-ent = os.urandom(256//8)
+bits = 256
+print("Bytes = " + str(bits//8))
+ent = os.urandom(bits//8)
 ent_hex = binascii.hexlify(ent)
 decoded = ent_hex.decode("utf-8")
-ent_bin = binascii.unhexlify(decoded) #random in bin
+ent_bin = binascii.unhexlify(str(decoded)) #random in bin
 ent_hex = binascii.hexlify(ent_bin) #random in hex
+bytes = len(ent_bin)
 
-ent_sha = hashlib.sha256(ent_bin).hexdigest()
-checksum = int(256/32)
+hashed_sha256 = hashlib.sha256(ent_bin).hexdigest()
+print("My sha256: " + str(hashed_sha256))
 
-bin_result = (
-    bin(int(decoded, 16))[2:].zfill(bytes * 8)
-    + bin(int(ent_sha, 16))[2:].zfill(256)[: bytes * 8 // 32]
+checksum = bits/32 #8 bits
+
+result = (
+    bin(int(ent_hex, 16))[2:].zfill(bytes * 8)
+    + bin(int(hashed_sha256, 16))[2:].zfill(256)[: bytes * 8 // 32]
 )
+print("Bin result: " + str(result))
 
 index_list = []
 with open("wordlist.txt", "r", encoding="utf-8") as f:
@@ -25,11 +29,23 @@ with open("wordlist.txt", "r", encoding="utf-8") as f:
         index_list.append(w.strip())
 
 wordlist = []
-for i in range(len(bin_result) // 11):
-    #print(bin_result[i*11 : (i+1)*11])
-    index = int(bin_result[i*11 : (i+1)*11], 2)
+for i in range(len(result) // 11):
+    #print(result[i*11 : (i+1)*11])
+    index = int(result[i*11 : (i+1)*11], 2)
     #print(str(index))
     wordlist.append(index_list[index])
 
 phrase = " ".join(wordlist)
 print(phrase)
+
+#TO SEED
+normalized_mnemonic = unicodedata.normalize("NFKD", phrase)
+password = ""
+normalized_passphrase = unicodedata.normalize("NFKD", password)
+
+passphrase = "mnemonic" + normalized_passphrase
+mnemonic = normalized_mnemonic.encode("utf-8")
+passphrase = passphrase.encode("utf-8")
+
+bin_seed = hashlib.pbkdf2_hmac("sha512", mnemonic, passphrase, 2048)
+print(binascii.hexlify(bin_seed[:64]))
