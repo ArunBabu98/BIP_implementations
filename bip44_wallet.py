@@ -12,16 +12,14 @@ ent_bin = binascii.unhexlify(str(decoded)) #random in bin
 ent_hex = binascii.hexlify(ent_bin) #random in hex
 bytes = len(ent_bin)
 
-hashed_sha256 = hashlib.sha256(ent_bin).hexdigest()
-print("My sha256: " + str(hashed_sha256))
 
-checksum = bits/32 #8 bits
+hashed_sha256 = hashlib.sha256(ent_bin).hexdigest()
 
 result = (
     bin(int(ent_hex, 16))[2:].zfill(bytes * 8)
     + bin(int(hashed_sha256, 16))[2:].zfill(256)[: bytes * 8 // 32]
 )
-print("Bin result: " + str(result))
+
 
 index_list = []
 with open("wordlist.txt", "r", encoding="utf-8") as f:
