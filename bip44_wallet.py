@@ -7,15 +7,16 @@ import struct
 import ecdsa
 from base58 import b58encode
 from ecdsa.curves import SECP256k1
-from ecdsa.ecdsa import int_to_string, string_to_int
+from ecdsa.ecdsa import int_to_string
+import re
 
 bits = 256
-print("Bytes = " + str(bits//8))
-ent = os.urandom(bits//8)
+print("Bytes = " + str(bits // 8))
+ent = os.urandom(bits // 8)
 ent_hex = binascii.hexlify(ent)
 decoded = ent_hex.decode("utf-8")
-ent_bin = binascii.unhexlify(str(decoded)) #random in bin
-ent_hex = binascii.hexlify(ent_bin) #random in hex
+ent_bin = binascii.unhexlify(str(decoded))  # random in bin
+ent_hex = binascii.hexlify(ent_bin)  # random in hex
 bytes = len(ent_bin)
 
 
@@ -34,15 +35,15 @@ with open("wordlist.txt", "r", encoding="utf-8") as f:
 
 wordlist = []
 for i in range(len(result) // 11):
-    #print(result[i*11 : (i+1)*11])
-    index = int(result[i*11 : (i+1)*11], 2)
-    #print(str(index))
+    # print(result[i*11 : (i+1)*11])
+    index = int(result[i * 11 : (i + 1) * 11], 2)
+    # print(str(index))
     wordlist.append(index_list[index])
 
 phrase = " ".join(wordlist)
 print(phrase)
 
-#TO SEED
+# TO SEED
 normalized_mnemonic = unicodedata.normalize("NFKD", phrase)
 password = ""
 normalized_passphrase = unicodedata.normalize("NFKD", password)
@@ -67,23 +68,25 @@ Il, Ir = I[:32], I[32:]
 secret = Il
 chain = Ir
 
+
 xprv = binascii.unhexlify("0488ade4")
 xpub = binascii.unhexlify("0488b21e")
 depth = b"\x00"
-fpr = b'\0\0\0\0'
+fpr = b"\0\0\0\0"
 index = 0
-child = struct.pack('>L', index) 
+child = struct.pack(">L", index)
+
 
 k_priv = ecdsa.SigningKey.from_string(secret, curve=SECP256k1)
 K_priv = k_priv.get_verifying_key()
 
-data_priv = b'\x00' + (k_priv.to_string())  # ser256(p): serializes integer p as a 32-byte sequence
+data_priv = b"\x00" + (k_priv.to_string())
 
-# serialization the coordinate pair P = (x,y) as a byte sequence using SEC1's compressed form
+
 if K_priv.pubkey.point.y() & 1:
-    data_pub= b'\3'+int_to_string(K_priv.pubkey.point.x())
+    data_pub = b"\3" + int_to_string(K_priv.pubkey.point.x())
 else:
-    data_pub = b'\2'+int_to_string(K_priv.pubkey.point.x())
+    data_pub = b"\2" + int_to_string(K_priv.pubkey.point.x())
 
 raw_priv = xprv + depth + fpr + child + chain + data_priv
 raw_pub = xpub + depth + fpr + child + chain + data_pub
@@ -98,6 +101,14 @@ hashed_xpub = hashlib.sha256(hashed_xpub).digest()
 raw_priv += hashed_xprv[:4]
 raw_pub += hashed_xpub[:4]
 
-# Return base58
-print(b58encode(raw_priv))
-print(b58encode(raw_pub))
+privatekey = b58encode(raw_priv)
+publickey = b58encode(raw_pub)
+
+print(privatekey)
+print(publickey)
+
+HIGHEST_BIT = 0x80000000
+UINT31_MAX = 2147483647  # 2^31 -1
+UINT32_MAX = 4294967295  # 2^32 -1
+
+
