@@ -107,8 +107,76 @@ publickey = b58encode(raw_pub)
 print(privatekey)
 print(publickey)
 
-HIGHEST_BIT = 0x80000000
-UINT31_MAX = 2147483647  # 2^31 -1
-UINT32_MAX = 4294967295  # 2^32 -1
+def parse_path(path: str) -> list:
+    """converts derivation path of the form m/44h/1'/0'/0/32 to int array"""
+    arr = path.split("/")
+    if arr[0] == "m":
+        arr = arr[1:]
+    if len(arr) == 0:
+        return []
+    if arr[-1] == "":
+        # trailing slash
+        arr = arr[:-1]
+    for i, e in enumerate(arr):
+        if e[-1] == "h" or e[-1] == "'":
+            arr[i] = int(e[:-1]) + 0x80000000
+        else:
+            arr[i] = int(e)
+    return arr
 
 
+def path_to_str(path: list, fingerprint=None) -> str:
+    s = "m" if fingerprint is None else hexlify(fingerprint).decode()
+    for el in path:
+        if el >= 0x80000000:
+            s += "/%dh" % (el - 0x80000000)
+        else:
+            s += "/%d" % el
+    return s
+
+def derive(self, path):
+    """ path: int array or a string starting with m/ """
+    if isinstance(path, str):
+            # string of the form m/44h/0'/ind
+         path = parse_path(path)
+    child = self
+    for idx in path:
+        child = child.child(idx)
+    return child
+
+def hash160(msg):
+    """ripemd160(sha256(msg)) -> bytes"""
+    return hashlib.new('ripemd160', hashlib.sha256(msg).digest()).digest()
+
+def child(self, index: int, hardened: bool = False):
+        """Derives a child HDKey"""
+        if hardened and index < 0x80000000:
+            index += 0x80000000
+        if index >= 0x80000000:
+            hardened = True
+        # we need pubkey for fingerprint anyways
+        sec = self.sec()
+        fingerprint = hash160(sec)[:4]
+        if hardened:
+            data = b"\x00" + self.key.serialize() + index.to_bytes(4, "big")
+        else:
+            data = sec + index.to_bytes(4, "big")
+        raw = hmac.new(self.chain_code, data, digestmod='sha512').digest()
+        secret = raw[:32]
+        chain_code = raw[32:]
+        if self.is_private:
+            secret = secp256k1.ec_privkey_add(secret, self.key.serialize())
+            key = ec.PrivateKey(secret)
+        else:
+            # copy of internal secp256k1 point structure
+            point = copy(self.key._point)
+            point = secp256k1.ec_pubkey_add(point, secret)
+            key = ec.PublicKey(point)
+        return HDKey(
+            key,
+            chain_code,
+            version=self.version,
+            depth=self.depth + 1,
+            fingerprint=fingerprint,
+            child_number=index,
+        )
