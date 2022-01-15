@@ -1,14 +1,15 @@
 import os
 import binascii
 import hashlib
+from turtle import pu
 import unicodedata
 import hmac
 import struct
 import ecdsa
-from base58 import b58encode
+from base58 import b58encode,  b58encode_check
 from ecdsa.curves import SECP256k1
-from ecdsa.ecdsa import int_to_string
-import re
+from ecdsa.ecdsa import int_to_string, Public_key
+from bip32 import BIP32, HARDENED_INDEX
 
 bits = 256
 print("Bytes = " + str(bits // 8))
@@ -36,7 +37,7 @@ with open("wordlist.txt", "r", encoding="utf-8") as f:
 wordlist = []
 for i in range(len(result) // 11):
     # print(result[i*11 : (i+1)*11])
-    index = int(result[i * 11 : (i + 1) * 11], 2)
+    index = int(result[i * 11: (i + 1) * 11], 2)
     # print(str(index))
     wordlist.append(index_list[index])
 
@@ -103,80 +104,37 @@ raw_pub += hashed_xpub[:4]
 
 privatekey = b58encode(raw_priv)
 publickey = b58encode(raw_pub)
-
+prv = privatekey.decode("utf8")
 print(privatekey)
 print(publickey)
 
-def parse_path(path: str) -> list:
-    """converts derivation path of the form m/44h/1'/0'/0/32 to int array"""
-    arr = path.split("/")
-    if arr[0] == "m":
-        arr = arr[1:]
-    if len(arr) == 0:
-        return []
-    if arr[-1] == "":
-        # trailing slash
-        arr = arr[:-1]
-    for i, e in enumerate(arr):
-        if e[-1] == "h" or e[-1] == "'":
-            arr[i] = int(e[:-1]) + 0x80000000
-        else:
-            arr[i] = int(e)
-    return arr
+bip32 = BIP32.from_xpriv(prv)
+xtend_prvkey = bip32.get_xpriv_from_path("m/44h/0h/0h/0")
+xtend_pubkey = bip32.get_xpub_from_path("m/44h/0h/0h/0")
 
 
-def path_to_str(path: list, fingerprint=None) -> str:
-    s = "m" if fingerprint is None else hexlify(fingerprint).decode()
-    for el in path:
-        if el >= 0x80000000:
-            s += "/%dh" % (el - 0x80000000)
-        else:
-            s += "/%d" % el
-    return s
+node_prvkey = bip32.get_xpriv_from_path("m/44h/0h/0h/0/0")
+node = BIP32.from_xpriv(node_prvkey)
+pub = binascii.hexlify(node.pubkey).decode("utf8")
 
-def derive(self, path):
-    """ path: int array or a string starting with m/ """
-    if isinstance(path, str):
-            # string of the form m/44h/0'/ind
-         path = parse_path(path)
-    child = self
-    for idx in path:
-        child = child.child(idx)
-    return child
+print("++++")
+print(xtend_prvkey)
+print(xtend_pubkey)
 
-def hash160(msg):
-    """ripemd160(sha256(msg)) -> bytes"""
-    return hashlib.new('ripemd160', hashlib.sha256(msg).digest()).digest()
 
-def child(self, index: int, hardened: bool = False):
-        """Derives a child HDKey"""
-        if hardened and index < 0x80000000:
-            index += 0x80000000
-        if index >= 0x80000000:
-            hardened = True
-        # we need pubkey for fingerprint anyways
-        sec = self.sec()
-        fingerprint = hash160(sec)[:4]
-        if hardened:
-            data = b"\x00" + self.key.serialize() + index.to_bytes(4, "big")
-        else:
-            data = sec + index.to_bytes(4, "big")
-        raw = hmac.new(self.chain_code, data, digestmod='sha512').digest()
-        secret = raw[:32]
-        chain_code = raw[32:]
-        if self.is_private:
-            secret = secp256k1.ec_privkey_add(secret, self.key.serialize())
-            key = ec.PrivateKey(secret)
-        else:
-            # copy of internal secp256k1 point structure
-            point = copy(self.key._point)
-            point = secp256k1.ec_pubkey_add(point, secret)
-            key = ec.PublicKey(point)
-        return HDKey(
-            key,
-            chain_code,
-            version=self.version,
-            depth=self.depth + 1,
-            fingerprint=fingerprint,
-            child_number=index,
-        )
+data_sha = hashlib.sha256(pub.encode("utf8")).digest()
+data = hashlib.new('ripemd160',data_sha).hexdigest()
+print(data)
+
+p = '00' + data # prefix with 00 if it's mainnet
+h1 = hashlib.sha256(binascii.unhexlify(p))
+h2 = hashlib.new('sha256', h1.digest())
+h3 = h2.hexdigest()
+a = h3[0:8] # first 4 bytes
+c = p + a # add first 4 bytes to beginning of pkhash
+d = int(c, 16) # string to decimal
+b = d.to_bytes((d.bit_length() + 7) // 8, 'big') # decimal to bytes
+
+
+final_address = b58encode(b)
+print(final_address.decode("utf8"))
