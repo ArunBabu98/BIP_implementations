@@ -116,25 +116,38 @@ xtend_pubkey = bip32.get_xpub_from_path("m/44h/0h/0h/0")
 node_prvkey = bip32.get_xpriv_from_path("m/44h/0h/0h/0/0")
 node = BIP32.from_xpriv(node_prvkey)
 pub = binascii.hexlify(node.pubkey).decode("utf8")
-
 print("++++")
 print(xtend_prvkey)
 print(xtend_pubkey)
 
+hex_str = bytearray.fromhex(pub)
+sha = hashlib.sha256()
+sha.update(hex_str)
+sha.hexdigest() 
 
-data_sha = hashlib.sha256(pub.encode("utf8")).digest()
-data = hashlib.new('ripemd160',data_sha).hexdigest()
-print(data)
+rip = hashlib.new('ripemd160')
+rip.update(sha.digest())
+key_hash = rip.hexdigest()
+modified_key_hash = "00" + key_hash
+key_bytes = binascii.unhexlify(modified_key_hash)
+address = b58encode_check(key_bytes).decode('utf-8')
 
-p = '00' + data # prefix with 00 if it's mainnet
-h1 = hashlib.sha256(binascii.unhexlify(p))
-h2 = hashlib.new('sha256', h1.digest())
-h3 = h2.hexdigest()
-a = h3[0:8] # first 4 bytes
-c = p + a # add first 4 bytes to beginning of pkhash
-d = int(c, 16) # string to decimal
-b = d.to_bytes((d.bit_length() + 7) // 8, 'big') # decimal to bytes
+print(address)
 
 
-final_address = b58encode(b)
-print(final_address.decode("utf8"))
+# data_sha = hashlib.sha256(pub.encode("utf8")).digest()
+# data = hashlib.new('ripemd160',data_sha).hexdigest()
+# print(data)
+
+# p = '00' + data # prefix with 00 if it's mainnet
+# h1 = hashlib.sha256(binascii.unhexlify(p))
+# h2 = hashlib.new('sha256', h1.digest())
+# h3 = h2.hexdigest()
+# a = h3[0:8] # first 4 bytes
+# c = p + a # add first 4 bytes to beginning of pkhash
+# d = int(c, 16) # string to decimal
+# b = d.to_bytes((d.bit_length() + 7) // 8, 'big') # decimal to bytes
+
+
+# final_address = b58encode(b)
+# print(final_address.decode("utf8"))
